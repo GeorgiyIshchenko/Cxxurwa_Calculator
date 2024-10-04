@@ -96,9 +96,10 @@ class Combine : public Statement {
   }
 
   std::vector<std::shared_ptr<Statement>> ops;
+
 };
 
-std::regex constantRegex("^(\\+|\\-)*([0-9]+)$");
+std::regex constantRegex("^(\\+|\\-)?([0-9]+)$");
 std::unordered_map<std::string, std::shared_ptr<Operation>> symbolMatch{
     {"+", std::make_shared<Operation>(plus)},
     {"-", std::make_shared<Operation>(minus)},
@@ -137,17 +138,19 @@ std::shared_ptr<Statement> operator|(std::shared_ptr<Statement> lhs,
   auto lhsCombine = dynamic_cast<Combine*>(lhs.get());
   auto rhsCombine = dynamic_cast<Combine*>(rhs.get());
   Combine result{*lhsCombine};
-  result.ops.insert(result.ops.end(), rhsCombine->ops.begin(),
-                    rhsCombine->ops.end());
+  for (auto&& rhsOp: rhsCombine->ops){
+    result.ops.push_back(rhsOp);
+  }
   return std::make_shared<Combine>(result);
 };
+
+#ifdef MYTEST
 
 // TODO: optimize func
 std::shared_ptr<Statement> optimize(std::shared_ptr<Statement> stmt) {
   return NULL;
 }
 
-#ifdef MYTEST
 void printvec(std::vector<int> vec) {
   for (auto&& i : vec) {
     std::cout << i << " ";
