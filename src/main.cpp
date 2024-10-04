@@ -13,7 +13,7 @@ class ConstOp : public Statement {
   ConstOp(int v) : Statement(0, 1, true), val(v) {};
 
   std::vector<int> apply(std::vector<int> in) const override {
-    in.push_back(val);
+    in.emplace_back(val);
     return in;
   }
 
@@ -21,7 +21,7 @@ class ConstOp : public Statement {
   int val;
 };
 
-using funcIO = std::vector<int64_t>;
+using funcIO = std::array<int64_t, 2>;
 
 class Operation : public Statement {
  public:
@@ -32,7 +32,7 @@ class Operation : public Statement {
     funcIO args;
     for (int i = 0; i < arguments; ++i) {
       int idx = in.size() - arguments + i;
-      args.push_back(in[idx]);
+      args[i] = in[idx];
     }
     for (int i = 0; i < arguments; ++i) {
       in.pop_back();
@@ -79,7 +79,7 @@ class Combine : public Statement {
 
   std::vector<int> apply(std::vector<int> in) const override {
     for (auto&& c : ops) {
-      in = c->apply(in);
+      in = c->apply(std::move(in));
     }
     return in;
   }
@@ -96,7 +96,6 @@ class Combine : public Statement {
   }
 
   std::vector<std::shared_ptr<Statement>> ops;
-
 };
 
 std::regex constantRegex("^(\\+|\\-)?([0-9]+)$");
@@ -135,13 +134,28 @@ std::shared_ptr<Statement> compile(std::string_view str) {
 
 std::shared_ptr<Statement> operator|(std::shared_ptr<Statement> lhs,
                                      std::shared_ptr<Statement> rhs) {
+  auto result = std::make_shared<Combine>();
+
   auto lhsCombine = dynamic_cast<Combine*>(lhs.get());
   auto rhsCombine = dynamic_cast<Combine*>(rhs.get());
-  Combine result{*lhsCombine};
-  for (auto&& rhsOp: rhsCombine->ops){
-    result.ops.push_back(rhsOp);
+
+  if (lhsCombine == nullptr) {
+    result->append(lhs);
+  } else {
+    for (auto&& lhsOp : lhsCombine->ops) {
+      result->append(lhsOp);
+    }
   }
-  return std::make_shared<Combine>(result);
+
+  if (rhsCombine == nullptr) {
+    result->append(rhs);
+  } else {
+    for (auto&& rhsOp : rhsCombine->ops) {
+      result->append(rhsOp);
+    }
+  }
+
+  return result;
 };
 
 #ifdef MYTEST
@@ -215,9 +229,5 @@ int main(int argc, char** argv) {
   auto nop = compile("");
   assert(nop->is_pure() && nop->get_arguments_count() == 0 &&
          nop->get_results_count() == 0);
-
-  auto heh = compile(" 999 -9 - ");
-
-  printvec(heh->apply({}));
 }
 #endif
